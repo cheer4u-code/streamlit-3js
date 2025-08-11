@@ -1,0 +1,152 @@
+<html>
+
+<head>
+  <title>Earth 3D</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.179.1/build/three.module.js",
+        "three/adsons/controls/OrbitControls": "https://unpkg.com/three@0.179.1/examples/jsm/controls/OrbitControls.js"
+      }
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/6.0.1/satellite.min.js"></script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/adsons/controls/OrbitControls';
+
+    // https://discourse.threejs.org/t/sphere-geometry-just-wireframe-but-without-diagonal-lines/4027/8
+    function SphereToQuads(g) {
+      let p = g.parameters;
+      let segmentsX = p.widthSegments;
+      let segmentsY = p.heightSegments - 2;
+      let mainShift = segmentsX + 1;
+      let indices = [];
+      for (let i = 0; i < segmentsY + 1; i++) {
+        let index11 = 0;
+        let index12 = 0;
+        for (let j = 0; j < segmentsX; j++) {
+          index11 = (segmentsX + 1) * i + j;
+          index12 = index11 + 1;
+          let index21 = index11;
+          let index22 = index11 + (segmentsX + 1);
+          indices.push(index11 + mainShift, index12 + mainShift);
+          if (index22 < ((segmentsX + 1) * (segmentsY + 1) - 1)) {
+            indices.push(index21 + mainShift, index22 + mainShift);
+          }
+        }
+        if ((index12 + segmentsX + 1) <= ((segmentsX + 1) * (segmentsY + 1) - 1)) {
+          indices.push(index12 + mainShift, index12 + segmentsX + 1 + mainShift);
+        }
+      }
+
+      let lastIdx = indices[indices.length - 1] + 2;
+
+      // poles
+      for (let i = 0; i < segmentsX; i++) {
+        //top
+        indices.push(i, i + mainShift, i, i + mainShift + 1);
+
+        // bottom
+        let idx = lastIdx + i;
+        let backShift = mainShift + 1;
+        indices.push(idx, idx - backShift, idx, idx - backShift + 1);
+      }
+
+      g.setIndex(indices);
+
+      return g;
+    }
+
+    let scene, renderer, camera, controls, earth, jday;
+
+    function init() {
+      THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+
+      const earthRadius = 6378.137;  // km
+      const distance = earthRadius * 5;
+      const maxDistance = earthRadius * 10;
+      const minDistance = earthRadius * 1.5;
+  
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffffff);
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        1,
+        maxDistance * 2,
+      );
+      const rad = 30 * Math.PI / 180;
+      camera.position.set(distance * Math.cos(rad), 0, distance * Math.sin(rad));
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.maxDistance = maxDistance;
+      controls.minDistance = minDistance;
+
+      const widthSegments = 32;
+      const heightSegments = widthSegments / 2;
+      earth = new THREE.Mesh(
+        new THREE.SphereGeometry(earthRadius, widthSegments, heightSegments),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      scene.add(earth);
+      const gridframe = new THREE.LineSegments(
+        SphereToQuads(new THREE.SphereGeometry(earthRadius, widthSegments, heightSegments)),
+        new THREE.LineBasicMaterial({ color: 0x888888 }));
+      earth.add(gridframe);
+      earth.rotation.x = Math.PI / 2;
+
+      jday = satellite.jday(new Date());
+
+      earth.userData = new class {
+        constructor() {
+          this.earth = earth;
+        }
+        update(gmst) {
+          this.earth.rotation.y = gmst;
+        }
+      }
+    }
+
+    function onWindowResize() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+
+    init();
+    let timeScale = 1440;
+    let previousTime = 0;
+    renderer.setAnimationLoop(time => {
+      controls.update();
+
+      const delta = (time - previousTime) / 1000 * timeScale;
+      jday += delta / 86400;
+      const gmst = satellite.gstime(jday);
+      earth.userData.update(gmst);
+      previousTime = time;
+      renderer.render(scene, camera);
+    });
+    onWindowResize();
+    window.addEventListener('resize', onWindowResize);
+  </script>
+</body>
+
+</html>

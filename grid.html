@@ -1,0 +1,80 @@
+<html>
+
+<head>
+  <title>Grid 3D</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.179.1/build/three.module.js",
+        "three/adsons/controls/OrbitControls": "https://unpkg.com/three@0.179.1/examples/jsm/controls/OrbitControls.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/adsons/controls/OrbitControls';
+
+    let scene, renderer, camera, controls;
+
+    function init() {
+      THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+
+      const gridSize = 1000;
+      const distance = gridSize * 2;
+      const maxDistance = distance * 5;
+      const minDistance = distance / 10;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffffff);
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        1,
+        maxDistance * 2,
+      );
+      const rad = 30 * Math.PI / 180;
+      camera.position.set(distance * Math.cos(rad), 0, distance * Math.sin(rad));
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.maxDistance = maxDistance;
+      controls.minDistance = minDistance;
+
+      const gridHelper = new THREE.GridHelper(1000, 10);
+      scene.add(gridHelper);
+      gridHelper.rotation.x = Math.PI / 2;
+    }
+
+    function onWindowResize() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+
+    init();
+    renderer.setAnimationLoop(time => {
+      controls.update();
+      renderer.render(scene, camera);
+    });
+    onWindowResize();
+    window.addEventListener('resize', onWindowResize);
+  </script>
+</body>
+
+</html>
