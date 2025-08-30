@@ -117,8 +117,13 @@
     init();
     let timeScale = 1440;
     let previousTime = 0;
+    const fps = 24;
+    const interval = 1000 / fps;
     renderer.setAnimationLoop(time => {
       controls.update();
+      if ((time - previousTime) < interval) {
+        return;
+      }
       const delta = (time - previousTime) / 1000 * timeScale;
       jday += delta / 86400;
       const gmst = satellite.gstime(jday);

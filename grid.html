@@ -68,8 +68,15 @@
     }
 
     init();
+    let previousTime = 0;
+    const fps = 24;
+    const interval = 1000 / fps;
     renderer.setAnimationLoop(time => {
       controls.update();
+      if ((time - previousTime) < interval) {
+        return;
+      }
+      previousTime = time;
       renderer.render(scene, camera);
     });
     onWindowResize();
