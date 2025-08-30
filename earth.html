@@ -26,49 +26,6 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/adsons/controls/OrbitControls';
 
-    // https://discourse.threejs.org/t/sphere-geometry-just-wireframe-but-without-diagonal-lines/4027/8
-    function SphereToQuads(g) {
-      let p = g.parameters;
-      let segmentsX = p.widthSegments;
-      let segmentsY = p.heightSegments - 2;
-      let mainShift = segmentsX + 1;
-      let indices = [];
-      for (let i = 0; i < segmentsY + 1; i++) {
-        let index11 = 0;
-        let index12 = 0;
-        for (let j = 0; j < segmentsX; j++) {
-          index11 = (segmentsX + 1) * i + j;
-          index12 = index11 + 1;
-          let index21 = index11;
-          let index22 = index11 + (segmentsX + 1);
-          indices.push(index11 + mainShift, index12 + mainShift);
-          if (index22 < ((segmentsX + 1) * (segmentsY + 1) - 1)) {
-            indices.push(index21 + mainShift, index22 + mainShift);
-          }
-        }
-        if ((index12 + segmentsX + 1) <= ((segmentsX + 1) * (segmentsY + 1) - 1)) {
-          indices.push(index12 + mainShift, index12 + segmentsX + 1 + mainShift);
-        }
-      }
-
-      let lastIdx = indices[indices.length - 1] + 2;
-
-      // poles
-      for (let i = 0; i < segmentsX; i++) {
-        //top
-        indices.push(i, i + mainShift, i, i + mainShift + 1);
-
-        // bottom
-        let idx = lastIdx + i;
-        let backShift = mainShift + 1;
-        indices.push(idx, idx - backShift, idx, idx - backShift + 1);
-      }
-
-      g.setIndex(indices);
-
-      return g;
-    }
-
     let scene, renderer, camera, controls, earth, jday;
 
     function init() {
@@ -78,7 +35,7 @@
       const distance = earthRadius * 5;
       const maxDistance = earthRadius * 10;
       const minDistance = earthRadius * 1.5;
-  
+
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0xffffff);
       renderer = new THREE.WebGLRenderer();
@@ -91,24 +48,50 @@
         1,
         maxDistance * 2,
       );
-      const rad = 30 * Math.PI / 180;
+      const rad = THREE.MathUtils.degToRad(30);
       camera.position.set(distance * Math.cos(rad), 0, distance * Math.sin(rad));
       controls = new OrbitControls(camera, renderer.domElement);
       controls.maxDistance = maxDistance;
       controls.minDistance = minDistance;
 
-      const widthSegments = 32;
-      const heightSegments = widthSegments / 2;
       earth = new THREE.Mesh(
-        new THREE.SphereGeometry(earthRadius, widthSegments, heightSegments),
-        new THREE.MeshBasicMaterial({ color: 0xffffff })
+        new THREE.SphereGeometry(earthRadius, 48, 24),
+        new THREE.MeshBasicMaterial({ color: 0xADD8E6 })
       );
       scene.add(earth);
-      const gridframe = new THREE.LineSegments(
-        SphereToQuads(new THREE.SphereGeometry(earthRadius, widthSegments, heightSegments)),
-        new THREE.LineBasicMaterial({ color: 0x888888 }));
-      earth.add(gridframe);
-      earth.rotation.x = Math.PI / 2;
+      (() => {
+        for (let latRad of [-75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75]) {
+          const lat = THREE.MathUtils.degToRad(latRad);
+          const radius = earthRadius * Math.cos(lat);
+          const z = earthRadius * Math.sin(lat);
+          const points = [];
+          for (let thetaRad = -180; thetaRad <= 180; thetaRad++) {
+            const theta = THREE.MathUtils.degToRad(thetaRad);
+            points.push(new THREE.Vector3(radius * Math.cos(theta), radius * Math.sin(theta), z));
+          }
+          const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(points),
+            new THREE.LineBasicMaterial({ color: lat === 0 ? 0xFF0000 : 0x888888 })
+          );
+          earth.add(line);
+        }
+      })();
+      (() => {
+        for (let lngRad of [-180, -165, -150, -135, -120, -105, -90, -75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165]) {
+          const lng = THREE.MathUtils.degToRad(lngRad);
+          const points = [];
+          for (let thetaRad = -90; thetaRad <= 90; thetaRad++) {
+            const theta = THREE.MathUtils.degToRad(thetaRad);
+            points.push(new THREE.Vector3(earthRadius * Math.cos(theta), 0, earthRadius * Math.sin(theta)));
+          }
+          const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(points),
+            new THREE.LineBasicMaterial({ color: lng === 0 ? 0xFF0000 : 0x888888 })
+          );
+          line.rotation.z = lng;
+          earth.add(line);
+        }
+      })();
 
       jday = satellite.jday(new Date());
 
@@ -117,7 +100,7 @@
           this.earth = earth;
         }
         update(gmst) {
-          this.earth.rotation.y = gmst;
+          this.earth.rotation.z = gmst;
         }
       }
     }
@@ -136,7 +119,6 @@
     let previousTime = 0;
     renderer.setAnimationLoop(time => {
       controls.update();
-
       const delta = (time - previousTime) / 1000 * timeScale;
       jday += delta / 86400;
       const gmst = satellite.gstime(jday);
